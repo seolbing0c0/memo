@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+<style>
+body {
+  font-family: sans-serif;
+  max-width: 430px;
+  margin: auto;
+  padding: 12px;
+  background: #f5f7fb;
+}
+
+/* 관리자 버튼 중앙 */
+.top-bar {
+  display: flex;
+  justify-content: center;
+}
+
+.admin-btn {
+  padding: 5px 10px;
+  font-size: 12px;
+  background: #333;
+  color: #fff;
+  border-radius: 8px;
+  border: none;
+}
+
+/* 입력 카드 */
+.input-card {
+  background: #fff;
+  padding: 14px;
+  border-radius: 14px;
+  margin: 10px 0;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.input-card input,
+.input-card textarea {
+  width: 95%;
+  margin: 6px 0;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid #ddd;
+}
+
+button {
+  width: 95%;
+  padding: 10px;
+  border-radius: 10px;
+  border: none;
+  background: #7aa2ff;
+  color: #fff;
+}
+
+/* 글 카드 */
+.post {
+  position: relative;
+  background: #fff;
+  padding: 12px;
+  margin: 10px 0;
+  border-radius: 12px;
+}
+
+/* ❤️ 버튼 */
+.like-btn {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: none;
+}
+
+/* 하트 */
+.heart {
+  position: relative;
+  width: 16px;
+  height: 14px;
+  margin: auto;
+}
+
+.heart::before,
+.heart::after {
+  content: "";
+  position: absolute;
+  width: 8px;
+  height: 12px;
+  border-radius: 8px 8px 0 0;
+}
+
+.heart::before { left: 8px; transform: rotate(-45deg); transform-origin: 0 100%; }
+.heart::after { left: 0; transform: rotate(45deg); transform-origin: 100% 100%; }
+
+/* 색 */
+.heart::before,
+.heart::after { background: #bbb; }
+
+.like-btn.liked .heart::before,
+.like-btn.liked .heart::after { background: #ff4d6d; }
+
+/* 🔥 툭 애니메이션 */
+.like-btn.animate {
+  animation: pop 0.2s ease;
+}
+@keyframes pop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.3); }
+  100% { transform: scale(1); }
+}
+
+.like-count {
+  font-size: 10px;
+  text-align: center;
+}
+
+.delete-btn {
+  margin-top: 8px;
+  background: #ff5555;
+}
+</style>
+
+<script>
+var firebaseConfig = {
+  apiKey: "AIzaSyBNXNBMBqxHmqAlxcdijdqGIcLkxODyl_0",
+  authDomain: "test-edd0c.firebaseapp.com",
+  projectId: "test-edd0c"
+};
+
+firebase.initializeApp(firebaseConfig);
+var db = firebase.firestore();
+
+/* 🔥 유저 ID 생성 */
+let userId = localStorage.getItem("userId");
+if (!userId) {
+  userId = "u_" + Math.random().toString(36).substr(2, 9);
+  localStorage.setItem("userId", userId);
+}
+
+let isAdmin = false;
+const ADMIN_PASSWORD = "0624";
+
+/* 관리자 */
+function adminLogin() {
+  if (prompt("비밀번호") === ADMIN_PASSWORD) {
+    isAdmin = true;
+    alert("관리자 ON");
+  }
+}
+
+/* 글 작성 */
+function add() {
+  let name = nameEl.value || "익명";
+  let msg = msgEl.value;
+  if (!msg.trim()) return;
+
+  db.collection("guestbook").add({
+    name, msg,
+    date: Date.now()
+  });
+
+  nameEl.value = '';
+  msgEl.value = '';
+}
+
+/* ❤️ 토글 (유저별) */
+function like(postId, btn) {
+  const ref = db.collection("guestbook")
+                .doc(postId)
+                .collection("likes")
+                .doc(userId);
+
+  ref.get().then(doc => {
+    if (doc.exists) {
+      ref.delete();
+    } else {
+      ref.set({ t: Date.now() });
+    }
+  });
+
+  /* 애니메이션 */
+  btn.classList.add("animate");
+  setTimeout(() => btn.classList.remove("animate"), 200);
+}
+
+/* 시간 */
+function formatDate(t) {
+  return new Date(t).toLocaleString('ko-KR', {
+    year:'numeric', month:'2-digit', day:'2-digit',
+    hour:'2-digit', minute:'2-digit', hour12:false
+  });
+}
+
+/* 출력 */
+db.collection("guestbook")
+.orderBy("date","desc")
+.onSnapshot(snap => {
+
+  const list = document.getElementById("list");
+  list.innerHTML = "";
+
+  snap.forEach(doc => {
+    const d = doc.data();
+
+    const post = document.createElement("div");
+    post.className = "post";
+
+    post.innerHTML = `
+      <b>${d.name}</b><br>
+      <small>${formatDate(d.date)}</small><br><br>
+      ${d.msg}
+      <button class="like-btn" id="btn-${doc.id}">
+        <div class="heart"></div>
+        <span class="like-count" id="count-${doc.id}">0</span>
+      </button>
+    `;
+
+    list.appendChild(post);
+
+    const btn = document.getElementById(`btn-${doc.id}`);
+    btn.onclick = () => like(doc.id, btn);
+
+    /* 🔥 실시간 좋아요 */
+    db.collection("guestbook")
+      .doc(doc.id)
+      .collection("likes")
+      .onSnapshot(likeSnap => {
+
+        document.getElementById(`count-${doc.id}`).innerText = likeSnap.size;
+
+        let liked = false;
+        likeSnap.forEach(l => {
+          if (l.id === userId) liked = true;
+        });
+
+        btn.classList.toggle("liked", liked);
+      });
+  });
+});
+</script>
+</head>
+
+<body>
+
+<div class="top-bar">
+  <button class="admin-btn" onclick="adminLogin()">관리자</button>
+</div>
+
+<div class="input-card">
+  <input id="name" placeholder="이름">
+  <textarea id="msg" rows="3" placeholder="내용"></textarea>
+  <button onclick="add()">작성</button>
+</div>
+
+<div id="list"></div>
+
+</body>
+</html>
