@@ -16,9 +16,11 @@ body {
   background: #f5f7fb;
 }
 
+/* 상단 */
 .top-bar {
   display: flex;
   justify-content: center;
+  margin-bottom: 6px;
 }
 
 .admin-btn {
@@ -30,11 +32,12 @@ body {
   border: none;
 }
 
+/* 입력 카드 */
 .input-card {
   background: #fff;
   padding: 14px;
   border-radius: 14px;
-  margin: 10px 0;
+  margin-bottom: 12px;
   box-shadow: 0 4px 10px rgba(0,0,0,0.05);
   display: flex;
   flex-direction: column;
@@ -59,6 +62,7 @@ button {
   color: #fff;
 }
 
+/* 글 카드 */
 .post {
   position: relative;
   background: #fff;
@@ -67,6 +71,7 @@ button {
   border-radius: 12px;
 }
 
+/* ❤️ 하트 */
 .like-btn {
   position: absolute;
   right: 10px;
@@ -116,6 +121,7 @@ button {
   text-align: center;
 }
 
+/* 삭제 버튼 */
 .delete-btn {
   margin-top: 8px;
   background: #ff5555;
@@ -132,23 +138,29 @@ var firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 var db = firebase.firestore();
 
-/* 유저 ID */
+/* 🔥 유저 ID */
 let userId = localStorage.getItem("userId");
 if (!userId) {
   userId = "u_" + Math.random().toString(36).substr(2, 9);
   localStorage.setItem("userId", userId);
 }
 
-let isAdmin = false;
+/* 🔥 관리자 상태 */
+let isAdmin = localStorage.getItem("isAdmin") === "true";
 const ADMIN_PASSWORD = "0624";
 
-/* 관리자 */
+/* 관리자 로그인 */
 function adminLogin() {
   if (prompt("비밀번호") === ADMIN_PASSWORD) {
-    isAdmin = true;
-    alert("관리자 ON");
-    location.reload(); // 🔥 핵심: 다시 렌더
+    localStorage.setItem("isAdmin", "true");
+    location.reload();
   }
+}
+
+/* 로그아웃 */
+function adminLogout() {
+  localStorage.removeItem("isAdmin");
+  location.reload();
 }
 
 /* 글 작성 */
@@ -162,7 +174,9 @@ function add() {
   if (!msg.trim()) return;
 
   db.collection("guestbook").add({
-    name, msg,
+    name,
+    msg,
+    userId, // 🔥 작성자 저장
     date: Date.now()
   });
 
@@ -188,7 +202,6 @@ function like(postId, btn) {
 
 /* 삭제 */
 function del(id) {
-  if (!isAdmin) return;
   if (confirm("삭제할까?")) {
     db.collection("guestbook").doc(id).delete();
   }
@@ -213,6 +226,8 @@ db.collection("guestbook")
   snap.forEach(doc => {
     const d = doc.data();
 
+    const canDelete = isAdmin || d.userId === userId;
+
     const post = document.createElement("div");
     post.className = "post";
 
@@ -226,7 +241,7 @@ db.collection("guestbook")
         <span class="like-count" id="count-${doc.id}">0</span>
       </button>
 
-      ${isAdmin ? `<button class="delete-btn" onclick="del('${doc.id}')">삭제</button>` : ""}
+      ${canDelete ? `<button class="delete-btn" onclick="del('${doc.id}')">삭제</button>` : ""}
     `;
 
     list.appendChild(post);
@@ -257,6 +272,7 @@ db.collection("guestbook")
 
 <div class="top-bar">
   <button class="admin-btn" onclick="adminLogin()">관리자</button>
+  <button class="admin-btn" onclick="adminLogout()">로그아웃</button>
 </div>
 
 <div class="input-card">
